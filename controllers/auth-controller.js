@@ -1,15 +1,23 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import gravatar from "gravatar";
+import fs from "fs/promises";
+import path from "path";
+import jimp from "jimp";
 
 import User from "../models/users.js";
 
 import { HttpError } from "../helpers/HttpError.js";
 import { ctrlWrapper } from "../helpers/ctrlWrapper.js";
 
+const postersPath = path.resolve("public", "avatars");
+
 const { JWT_SECRET } = process.env;
 
 const signup = async (req, res) => {
   const { email, password } = req.body;
+  const avatarURL = gravatar.url(email, { s: "100", r: "x", d: "retro" }, true);
+  console.log(avatarURL);
   const user = await User.findOne({ email });
   if (user) {
     throw HttpError(409, "Email already used");
@@ -17,7 +25,11 @@ const signup = async (req, res) => {
 
   const hashPassword = await bcrypt.hash(password, 10);
 
-  const newUser = await User.create({ ...req.body, password: hashPassword });
+  const newUser = await User.create({
+    ...req.body,
+    password: hashPassword,
+    avatarURL,
+  });
   res.status(201).json({
     username: newUser.username,
     email: newUser.email,
@@ -68,9 +80,32 @@ const signout = async (req, res) => {
   });
 };
 
+const updateUserAvatars = async (req, res) => {
+  const { _id } = req.user;
+
+  const { path: oldPath, filename } = req.file;
+
+  const avatarImage = await jimp.read(oldPath);
+
+  await avatarImage.resize(250, 250).write(path.join(postersPath, filename));
+  await fs.unlink(oldPath);
+
+  const avatar = path.join("avatars", filename);
+
+  const updatedUserAvatar = await User.findByIdAndUpdate(_id, {
+    avatarURL: avatar,
+  });
+
+  res.json({
+    username: updatedUserAvatar.username,
+    avatarURL: updatedUserAvatar.avatarURL,
+  });
+};
+
 export default {
   signup: ctrlWrapper(signup),
   signin: ctrlWrapper(signin),
   getCurrent: ctrlWrapper(getCurrent),
   signout: ctrlWrapper(signout),
+  updateUserAvatars: ctrlWrapper(updateUserAvatars),
 };
