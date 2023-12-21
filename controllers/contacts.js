@@ -1,7 +1,12 @@
+import fs from "fs/promises";
+import path from "path";
+
 import Contact from "../models/contact.js";
 
 import { HttpError } from "../helpers/HttpError.js";
 import { ctrlWrapper } from "../helpers/ctrlWrapper.js";
+
+const postersPath = path.resolve("public", "posters");
 
 const getALL = async (req, res) => {
   const { _id: owner } = req.user;
@@ -28,7 +33,11 @@ const getById = async (req, res) => {
 
 const add = async (req, res) => {
   const { _id: owner } = req.user;
-  const result = await Contact.create({ ...req.body, owner });
+  const { path: oldPath, filename } = req.file;
+  const newPath = path.join(postersPath, filename);
+  await fs.rename(oldPath, newPath);
+  const poster = path.join("posters", filename);
+  const result = await Contact.create({ ...req.body, poster, owner });
   res.status(201).json(result);
 };
 
@@ -36,7 +45,7 @@ const updateById = async (req, res) => {
   const { _id: owner } = req.user;
   const { contactId } = req.params;
   //   const result = await Contact.findByIdAndUpdate(contactId, req.body);
-  const result = await Contact.findOneAndUpdete(
+  const result = await Contact.findOneAndUpdate(
     { _id: contactId, owner },
     req.body
   );
